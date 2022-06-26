@@ -142,7 +142,7 @@ sudo mv /tmp/eksctl /usr/local/bin/
 ```
 
 ### eksctl anywhere plugin 
-Install the eksctl-anywhere plugin.
+Install the `eksctl-anywhere` plugin.
 ```
 export EKSA_RELEASE="0.9.1" OS="$(uname -s | tr A-Z a-z)" RELEASE_NUMBER=12
 curl "https://anywhere-assets.eks.amazonaws.com/releases/eks-a/${RELEASE_NUMBER}/artifacts/eks-a/v${EKSA_RELEASE}/${OS}/amd64/eksctl-anywhere-v${EKSA_RELEASE}-${OS}-amd64.tar.gz" \
@@ -276,7 +276,7 @@ rc-dev-md-0-7c4c7f595d-5lcq8   Ready    <none>                 14m   v1.22.6-eks
 ```
 
 
-### Spin Up a multi node cluster
+## Spin Up a multi node cluster
 
 While the basic cluster with a control plane and a worker node is nice, having the ability to spin up a multi node kubernetes cluster is fantastic. Let's see if EKS Anywhere is up to the task.
 
@@ -294,7 +294,7 @@ And finally, change the `workerNodeGroupConfigurations.count` value to 3. Now le
 $ eksctl anywhere create cluster -f rc-dev-multinode.yaml 
 ```
 
-### Verify cluster
+## Verify cluster
 
 Export the kubeconfig file as before and check nodes status
 
@@ -522,7 +522,7 @@ Some of the key integration components compatible with EKS Anywhere clusters are
 - Cost management 	- KubeCost
 - Etcd backup and restore - Valero
 
-## Cluster API Kubernetes (CAPI)
+# Cluster API Kubernetes (CAPI)
 
 Any introduction to EKS Anywhere will not be complete without mentioning Cluster API kubernetes project.
 
@@ -537,7 +537,7 @@ EKS Anywhere works under the same principles and uses CAPI underneath to impleme
 
 The EKS Anywhere project wraps Cluster API, various other CLIs and plugins (eksctl cli, anywhere plugin, kubectl, aws-iam-authenticator)  and bundles them in a single package to simplify the creation of workload clusters.
 
-## Epilogue
+# Epilogue
 Amazon EKS Anywhere aims to solve the pain points of managing the lifecycle of  kubernetes clusters in on-premise set up and provides a consistent and reliable workflow for creating and managing kubernetes clusters across deployment models and providers. With its currently supported VMWare's vSphere provider and upcoming support for bare metal, I am keen to explore its potential and study its adoption across customers and teams.
 
 Let me know your thoughts in the comments.
