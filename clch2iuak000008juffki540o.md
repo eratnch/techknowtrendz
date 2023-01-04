@@ -34,7 +34,7 @@ spec:
         image: nginx:1.16-alpine
 ```
 
-The above manifest makes use of topologyKey `kubernetes.io/zone` . It tells the scheduler not to schedule two Pods in same AZ.
+The above manifest makes use of topologyKey `kubernetes.io/zone` . It tells the Kubernetes scheduler not to schedule two Pods in same AZ.
 
 One of the other approaches that can be used to spread Pods across AZs is to use [Pod Topology Spread Constraints](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/) which was GA-ed in Kubernetes 1.19. This mechanism aims to spread pods evenly onto multiple node topologies.
 
@@ -42,7 +42,7 @@ While both of these approaches provide high-availability and resiliency for appl
 
 ## Enter *Topology Aware Hints*
 
-To address cross-AZ data transfer costs (which often is the elephant in the room for many EKS conversations on cost), pods running in a cluster must be able to perform topology-aware routing based on Availability Zone. And this is precisely what [Topology Aware Hints](https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/) helps achieve. Topology Aware Hints provides a mechanism to help keep traffic within the zone it originated from. Prior to topology-aware-hints, Service [topology-keys](https://kubernetes.io/docs/concepts/services-networking/service-topology/#examples) could be used for similar functionality. This was deprecated in kubernetes 1.21 in favor of topology-aware-hints which was introduced in kubernetes 1.21 and became "beta" in Kubernetes 1.23. With [EKS 1.24](https://aws.amazon.com/about-aws/whats-new/2022/11/amazon-eks-eks-distro-support-kubernetes-version-1-24/) however, this is enabled by default and EKS users and customers can leverage this feature to keep kubernetes service traffic within the same AZ.
+To address cross-AZ data transfer costs (which comes up during many EKS conversations on cost optimzation), pods running in a cluster must be able to perform topology-aware routing based on Availability Zone. And this is precisely what [Topology Aware Hints](https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/) helps achieve. Topology Aware Hints provides a mechanism to help keep traffic within the zone it originated from. Prior to topology-aware-hints, Service [topology-keys](https://kubernetes.io/docs/concepts/services-networking/service-topology/#examples) could be used for similar functionality. This was deprecated in kubernetes 1.21 in favor of topology-aware-hints which was introduced in kubernetes 1.21 and became "beta" in Kubernetes 1.23. With [EKS 1.24](https://aws.amazon.com/about-aws/whats-new/2022/11/amazon-eks-eks-distro-support-kubernetes-version-1-24/) however, this is enabled by default and EKS users and customers can leverage this feature to keep kubernetes service traffic within the same AZ.
 
 Let's dive in further and see this in action!
 
@@ -127,7 +127,7 @@ spec:
             app: getaz
       containers:
       - name: getaz-container
-        image: public.ecr.aws/e1x6y8e1/topologyapp:latest
+        image: getazcontainer:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
@@ -288,7 +288,7 @@ us-west-2d---
 
 The load-balancing and forwarding logic of the service call in this case is based on `kube-proxy` mode. EKS by default implements "iptables" mode of `kube-proxy`. When the `curl-debug` container sends the `curl` request to the "getazservice" virtual IP, the packet is then processed by the iptables rules on that worker node which are configured by the `kube-proxy`. Then a Pod backing the "getazservice" `Service` gets chosen at random by default. For detailed documentation on different kube-proxy modes(iptables, ipvs) please refer to [Kubernetes Documentation](https://kubernetes.io/docs/reference/networking/virtual-ips/).
 
-To avoid this "randomness" of routing and also reduce cost of inter-AZ traffic routing and network latency, topology-aware-hints can be activated for the `Service` to ensure that the service call is routed to a Pod that resides in the same AZ as the Pod from which the request originated from.
+To avoid this "randomness" of routing and reduce the cost of inter-AZ traffic routing and network latency, topology-aware-hints can be activated for the `Service` to ensure that the service call is routed to a Pod that resides in the same AZ as that of the Pod which the request originated from.
 
 To enable topology-aware routing, simply add the `service.kubernetes.io/topology-aware-hints annotation` to "auto" for the "getazservice" as below and re-deploy the manifest.
 
@@ -342,4 +342,4 @@ us-west-2b---
 
 This shows that the calls to "getazservice" is getting consistently picked up by the backing Pod that resides in the same AZ as the requester Pod. Topology aware routing in this case is enabled by `EndPointSlice` Controller and the `kube-proxy` components. `EndPointSlice` API in Kubernetes provides a way to track network endpoints within a cluster. `EndpointSlices` offer a more scalable and extensible alternative to `Endpoints` and is available since Kubernetes 1.21. When calculating the endpoints for a `Service` that's annotated with `service.kubernetes.io/topology-aware-hints: auto` , the `EndpointSlice` controller considers the topology (region and zone) of each `Service` endpoint and populates the `hints` field to allocate it to a zone. Once the "hints" are populated, `kube-proxy` can then consume these hints, and use them to influence how the traffic is routed (favoring topologically closer endpoints).
 
-This solution reduces inter-AZ traffic routing and in turn lowers the cross-AZ data transfer costs in an EKS cluster. By enabling "intelligent" routing, it also helps reduce the network latency. While this approach works well in most cases, sometimes the `EndpointSlice` controller allocates endpoints from a different zone to ensure more even distribution of endpoints between zones. This results in some traffic being routed to other zones. Thus, when using Topology-Aware-hints, its important to have application pods balanced across AZs using Topology Spread Constraints to avoid imbalances in the amount of traffic handled by each pod. Additionally, there are some other [safeguards and constraints](https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/#safeguards) that one should be aware of before using this approach. Although, as alternative solutions, one can use Service Mesh technologies like Istio or Linkerd to achieve topology-aware routing, service mesh based solutions present additional complexities for the cluster operators to manage. In comparison, using topology-aware-hints is much simpler to implement, is supported out-of-the-box in EKS 1.24 and works great in reducing cross-AZ traffic costs within an EKS cluster.
+This solution reduces inter-AZ traffic routing and in turn lowers the cross-AZ data transfer costs in an EKS cluster. By enabling "intelligent" routing, it also helps reduce the network latency. While this approach works well in most cases, sometimes the `EndpointSlice` controller allocates endpoints from a different zone to ensure more even distribution of endpoints between zones. This results in some traffic being routed to other zones. Thus, when using Topology-Aware-hints, its important to have application pods balanced across AZs using Topology Spread Constraints to avoid imbalances in the amount of traffic handled by each pod. Additionally, there are some other [safeguards and constraints](https://kubernetes.io/docs/concepts/services-networking/topology-aware-hints/#safeguards) that one should be aware of before using this approach. As alternative solutions, one can use Service Mesh technologies like Istio or Linkerd to achieve topology-aware routing; however service mesh based solutions present additional complexities for the cluster operators to manage. In comparison, using topology-aware-hints is much simpler to implement, is supported out-of-the-box in EKS 1.24 and works great in reducing cross-AZ traffic costs within an EKS cluster.
